@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hand Writen Digit Predector</title>
+    <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            background: linear-gradient(to bottom, #121212, #1e88e5);
+            font-family: 'Cairo', sans-serif;
+            color: #fff;
+        }
+        h1 {
+            margin-bottom: 10px;
+            font-size: 32px;
+            font-weight: bold;
+            text-shadow: 2px 2px 10px rgba(255, 255, 255, 0.3);
+        }
+        .canvas-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background: rgba(255, 255, 255, 0.1);
+            padding: 10px;
+            border-radius: 15px;
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(10px);
+            border: 2px solid rgba(255, 255, 255, 0.2);
+        }
+        canvas {
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            cursor: crosshair;
+            image-rendering: pixelated;
+            background: white;
+            border-radius: 10px;
+        }
+        .buttons {
+            margin-top: 15px;
+            display: flex;
+            justify-content: space-around;
+            gap: 15px;
+        }
+        button {
+            padding: 12px 35px;
+            font-size: 18px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: 0.3s;
+            font-weight: bold;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+        }
+        #clearButton {
+            background: #444;
+            color: white;
+        }
+        #clearButton:hover {
+            background: #222;
+        }
+        #predictButton {
+            background: #1e88e5;
+            color: white;
+        }
+        #predictButton:hover {
+            background: rgb(35, 35, 244);
+        }
+        @media (max-width: 600px) {
+            canvas {
+                width: 90%;
+                height: auto;
+            }
+            button {
+                font-size: 16px;
+                padding: 10px 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>Logistic Regrission Model</h1>
+    <h2>Predect The Hand Writen Digits</h2>
+    <div class="container">
+        <div class="canvas-container">
+            <canvas id="drawCanvas" width="280" height="280"></canvas>
+            <div class="res"></div>
+        </div>
+        <div class="buttons">
+            <button id="clearButton">Delete</button>
+            <button id="predictButton">Predect</button>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById("drawCanvas");
+        const ctx = canvas.getContext("2d");
+        const cellSize = 10;
+        const gridSize = 28;
+        const brushSize = 1;
+        let drawing = false;
+        let gridData = Array(gridSize * gridSize).fill(0);
+    
+        // Set white background for visibility
+        ctx.fillStyle = "white";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+    
+        function getCellIndex(x, y) {
+            let row = Math.floor(y / cellSize);
+            let col = Math.floor(x / cellSize);
+            return row * gridSize + col;
+        }
+    
+        function applyBrush(cellIndex, intensity) {
+            let row = Math.floor(cellIndex / gridSize);
+            let col = cellIndex % gridSize;
+    
+            for (let i = -brushSize; i <= brushSize; i++) {
+                for (let j = -brushSize; j <= brushSize; j++) {
+                    let newRow = row + i;
+                    let newCol = col + j;
+                    if (newRow >= 0 && newRow < gridSize && newCol >= 0 && newCol < gridSize) {
+                        let newIndex = newRow * gridSize + newCol;
+                        gridData[newIndex] = Math.max(gridData[newIndex], intensity);
+                        ctx.fillStyle = `rgb(${255 - intensity}, ${255 - intensity}, ${255 - intensity})`; // Black stroke
+                        ctx.fillRect(newCol * cellSize, newRow * cellSize, cellSize, cellSize);
+                    }
+                }
+            }
+        }
+    
+        function getPosition(event) {
+            const rect = canvas.getBoundingClientRect();
+            let x, y;
+    
+            if (event.touches) {
+                x = event.touches[0].clientX - rect.left;
+                y = event.touches[0].clientY - rect.top;
+            } else {
+                x = event.clientX - rect.left;
+                y = event.clientY - rect.top;
+            }
+            return { x, y };
+        }
+    
+        function startDrawing(event) {
+            event.preventDefault();
+            drawing = true;
+            draw(event);
+        }
+    
+        function stopDrawing() {
+            drawing = false;
+        }
+    
+        function draw(event) {
+            if (!drawing) return;
+            event.preventDefault();
+    
+            const { x, y } = getPosition(event);
+            const cellIndex = getCellIndex(x, y);
+            applyBrush(cellIndex, 255);
+        }
+    
+        canvas.addEventListener("mousedown", startDrawing);
+        canvas.addEventListener("mouseup", stopDrawing);
+        canvas.addEventListener("mousemove", draw);
+    
+        canvas.addEventListener("touchstart", startDrawing);
+        canvas.addEventListener("touchend", stopDrawing);
+        canvas.addEventListener("touchmove", draw);
+    
+        document.getElementById("clearButton").addEventListener("click", () => {
+            ctx.fillStyle = "white";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            gridData.fill(0);
+            document.querySelector('.res').innerHTML = "";
+        });
+    
+        document.getElementById("predictButton").addEventListener("click", () => {
+            fetch("http://127.0.0.1:5000/predict", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ data: gridData }),
+            })
+            .then(response => response.json())
+            .then(data => {
+                document.querySelector('.res').innerHTML = data.prediction;
+            })
+            .catch(error => console.error("Error:", error));
+        });
+    </script>
+    
+</body>
+</html>
